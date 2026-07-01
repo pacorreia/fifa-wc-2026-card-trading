@@ -1,0 +1,61 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "fifa-wc-2026-card-trading.fullname" . }}-backend
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "fifa-wc-2026-card-trading.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: backend
+  policyTypes: ["Ingress", "Egress"]
+  ingress:
+    - from:
+        {{- if .Values.networkPolicy.allowExternalIngress }}
+        - {}
+        {{- end }}
+        - podSelector:
+            matchLabels:
+              {{- include "fifa-wc-2026-card-trading.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: frontend
+      ports:
+        - protocol: TCP
+          port: {{ .Values.backend.containerPort }}
+  egress:
+    - to:
+        - {}
+      ports:
+        - protocol: TCP
+          port: 5432
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "fifa-wc-2026-card-trading.fullname" . }}-frontend
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "fifa-wc-2026-card-trading.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: frontend
+  policyTypes: ["Ingress", "Egress"]
+  ingress:
+    - from:
+        {{- if .Values.networkPolicy.allowExternalIngress }}
+        - {}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.frontend.containerPort }}
+  egress:
+    - to:
+        - {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+{{- end }}

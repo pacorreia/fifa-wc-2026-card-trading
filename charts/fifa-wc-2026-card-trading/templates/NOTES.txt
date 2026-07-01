@@ -1,0 +1,10 @@
+1. Access the application:
+{{- range .Values.ingress.hosts }}
+  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}
+{{- end }}
+
+2. Backend health endpoints:
+  /healthz
+  /readyz
+
+3. Provide DATABASE_URL and JWT_SECRET through the chart secret or an existing secret.

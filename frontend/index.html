@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FIFA WC 2026 Sticker Trading</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>FIFA WC 2026 Sticker Trading</h1>
+      <p>Self-hosted Panini trading MVP</p>
+    </div>
+    <div class="topbar-actions">
+      <span id="currentUser"></span>
+      <button id="logoutBtn" class="secondary hidden">Logout</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <section id="authSection" class="auth-grid">
+      <div class="panel">
+        <h2>Login</h2>
+        <form id="loginForm">
+          <label>Username<input name="username" required /></label>
+          <label>Password<input name="password" type="password" required /></label>
+          <button type="submit">Login</button>
+        </form>
+      </div>
+      <div class="panel">
+        <h2>Register</h2>
+        <form id="registerForm">
+          <label>Username<input name="username" required /></label>
+          <label>Email<input name="email" type="email" required /></label>
+          <label>Password<input name="password" type="password" minlength="8" required /></label>
+          <button type="submit">Create account</button>
+        </form>
+      </div>
+    </section>
+
+    <section id="appSection" class="hidden">
+      <div class="tabs">
+        <button class="tab active" data-tab="collection">My Collection</button>
+        <button class="tab" data-tab="missing">Missing</button>
+        <button class="tab" data-tab="duplicates">Duplicates</button>
+        <button class="tab" data-tab="matches">Trade Matches</button>
+        <button class="tab" data-tab="notifications">Notifications <span id="notificationBadge" class="badge">0</span></button>
+      </div>
+
+      <div id="statusMessage" class="status hidden"></div>
+
+      <section id="tab-collection" class="tab-panel active">
+        <div class="panel stats-grid" id="statsCards"></div>
+        <div class="panel">
+          <div class="panel-header">
+            <h2>Collection</h2>
+            <div class="filters">
+              <input id="collectionFilter" placeholder="Filter by code or team" />
+              <button id="reloadBtn" class="secondary">Reload</button>
+            </div>
+          </div>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Code</th>
+                  <th>Team</th>
+                  <th>Category</th>
+                  <th>Position</th>
+                  <th>Count</th>
+                </tr>
+              </thead>
+              <tbody id="collectionTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="tab-missing" class="tab-panel">
+        <div class="panel">
+          <h2>Missing Stickers</h2>
+          <div id="missingList" class="card-list"></div>
+        </div>
+      </section>
+
+      <section id="tab-duplicates" class="tab-panel">
+        <div class="panel">
+          <h2>Duplicates</h2>
+          <div id="duplicatesList" class="card-list"></div>
+        </div>
+      </section>
+
+      <section id="tab-matches" class="tab-panel">
+        <div class="panel">
+          <h2>Trade Matches</h2>
+          <div id="matchesList" class="card-list"></div>
+        </div>
+        <div class="panel">
+          <h2>My Trades</h2>
+          <div id="tradesList" class="card-list"></div>
+        </div>
+      </section>
+
+      <section id="tab-notifications" class="tab-panel">
+        <div class="panel">
+          <h2>Notifications</h2>
+          <div id="notificationsList" class="card-list"></div>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
