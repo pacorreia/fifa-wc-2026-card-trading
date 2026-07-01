@@ -65,7 +65,7 @@ func (h *Hub) Run() {
 			if clients, ok := h.users[client.userID]; ok {
 				if _, exists := clients[client]; exists {
 					delete(clients, client)
-					close(client.send)
+					client.shutdown()
 				}
 				if len(clients) == 0 {
 					delete(h.users, client.userID)
@@ -102,8 +102,9 @@ func (h *Hub) PublishToUser(userID int64, event models.Event) error {
 	for _, client := range clients {
 		select {
 		case client.send <- payload:
+		case <-client.done:
 		default:
-			client.close()
+			client.shutdown()
 			h.Unregister(client)
 		}
 	}
@@ -128,8 +129,9 @@ func (h *Hub) PublishGlobal(event models.Event) error {
 	for _, client := range clients {
 		select {
 		case client.send <- payload:
+		case <-client.done:
 		default:
-			client.close()
+			client.shutdown()
 			h.Unregister(client)
 		}
 	}

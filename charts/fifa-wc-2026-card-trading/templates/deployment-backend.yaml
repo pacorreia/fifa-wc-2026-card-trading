@@ -29,12 +29,52 @@ spec:
           ports:
             - name: http
               containerPort: {{ .Values.backend.containerPort }}
-          envFrom:
-            - configMapRef:
-                name: {{ include "fifa-wc-2026-card-trading.fullname" . }}-config
-            - secretRef:
-                name: {{ include "fifa-wc-2026-card-trading.secretName" . }}
           env:
+            - name: PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "fifa-wc-2026-card-trading.fullname" . }}-config
+                  key: PORT
+            - name: CORS_ORIGINS
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "fifa-wc-2026-card-trading.fullname" . }}-config
+                  key: CORS_ORIGINS
+            - name: API_RATE_LIMIT_PER_MINUTE
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "fifa-wc-2026-card-trading.fullname" . }}-config
+                  key: API_RATE_LIMIT_PER_MINUTE
+            - name: LOGIN_RATE_LIMIT_PER_MINUTE
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "fifa-wc-2026-card-trading.fullname" . }}-config
+                  key: LOGIN_RATE_LIMIT_PER_MINUTE
+            - name: REGISTER_RATE_LIMIT_PER_MINUTE
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "fifa-wc-2026-card-trading.fullname" . }}-config
+                  key: REGISTER_RATE_LIMIT_PER_MINUTE
+            - name: WS_MAX_CONNECTIONS_PER_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "fifa-wc-2026-card-trading.fullname" . }}-config
+                  key: WS_MAX_CONNECTIONS_PER_USER
+            - name: LOG_LEVEL
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "fifa-wc-2026-card-trading.fullname" . }}-config
+                  key: LOG_LEVEL
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "fifa-wc-2026-card-trading.secretName" . }}
+                  key: DATABASE_URL
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "fifa-wc-2026-card-trading.secretName" . }}
+                  key: JWT_SECRET
             {{- range .Values.backend.extraEnv }}
             - name: {{ .name }}
               value: {{ .value | quote }}

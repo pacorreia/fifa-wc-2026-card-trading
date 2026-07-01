@@ -33,7 +33,7 @@ func ComputeTradeMatch(username string, userID int64, theyHaveYouNeed, youHaveTh
 }
 
 func (s *TradeService) FindMatches(ctx context.Context, userID int64) ([]models.TradeMatch, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id, username FROM users WHERE id <> $1 ORDER BY username`, userID)
+	rows, err := s.db.QueryContext(ctx, `SELECT id, username FROM users WHERE id <> $1 AND is_public = true ORDER BY username`, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -46,7 +46,7 @@ func (s *TradeService) FindMatches(ctx context.Context, userID int64) ([]models.
 		if err := rows.Scan(&otherID, &username); err != nil {
 			return nil, err
 		}
-		match, err := s.FindMatchWithUser(ctx, userID, otherID)
+		match, err := s.computeMatch(ctx, userID, otherID, username)
 		if err != nil {
 			return nil, err
 		}
@@ -59,10 +59,13 @@ func (s *TradeService) FindMatches(ctx context.Context, userID int64) ([]models.
 
 func (s *TradeService) FindMatchWithUser(ctx context.Context, userID, otherUserID int64) (models.TradeMatch, error) {
 	var username string
-	if err := s.db.QueryRowContext(ctx, `SELECT username FROM users WHERE id = $1`, otherUserID).Scan(&username); err != nil {
+	if err := s.db.QueryRowContext(ctx, `SELECT username FROM users WHERE id = $1 AND is_public = true`, otherUserID).Scan(&username); err != nil {
 		return models.TradeMatch{}, err
 	}
+	return s.computeMatch(ctx, userID, otherUserID, username)
+}
 
+func (s *TradeService) computeMatch(ctx context.Context, userID, otherUserID int64, username string) (models.TradeMatch, error) {
 	theyHaveYouNeed, err := s.queryMatchSide(ctx, userID, otherUserID, true)
 	if err != nil {
 		return models.TradeMatch{}, err
@@ -182,8 +185,12 @@ func (s *TradeService) CreateTrade(ctx context.Context, proposerID, responderID 
 		return models.Trade{}, err
 	}
 	if s.publisher != nil {
-		_ = s.publisher.PublishToUser(responderID, ws.NewEvent(ws.EventTradeRequestReceived, fullTrade))
-		_ = publishUnreadCount(ctx, s.db, s.publisher, responderID)
+		if evt, evtErr := ws.NewEvent(ws.EventTradeRequestReceived, fullTrade); evtErr == nil {
+			_ = s.publisher.PublishToUser(responderID, evt)
+		} else {
+			s.logger.Error("create trade.request.received event", "error", evtErr)
+		}
+		_ = publishUnreadCount(ctx, s.db, s.publisher, s.logger, responderID)
 	}
 	return fullTrade, nil
 }
@@ -307,8 +314,12 @@ func (s *TradeService) RespondTrade(ctx context.Context, userID, tradeID int64, 
 		return models.Trade{}, err
 	}
 	if s.publisher != nil {
-		_ = s.publisher.PublishToUser(proposerID, ws.NewEvent(eventType, trade))
-		_ = publishUnreadCount(ctx, s.db, s.publisher, proposerID)
+		if evt, evtErr := ws.NewEvent(eventType, trade); evtErr == nil {
+			_ = s.publisher.PublishToUser(proposerID, evt)
+		} else {
+			s.logger.Error("create trade response event", "error", evtErr)
+		}
+		_ = publishUnreadCount(ctx, s.db, s.publisher, s.logger, proposerID)
 	}
 	return trade, nil
 }
@@ -352,10 +363,15 @@ func createNotification(ctx context.Context, tx *sql.Tx, userID int64, notificat
 	return err
 }
 
-func publishUnreadCount(ctx context.Context, database *sql.DB, publisher EventPublisher, userID int64) error {
+func publishUnreadCount(ctx context.Context, database *sql.DB, publisher EventPublisher, logger *slog.Logger, userID int64) error {
 	var unread int
 	if err := database.QueryRowContext(ctx, `SELECT COUNT(*) FROM notifications WHERE user_id = $1 AND is_read = false`, userID).Scan(&unread); err != nil {
 		return err
 	}
-	return publisher.PublishToUser(userID, ws.NewEvent(ws.EventNotificationUnread, map[string]int{"count": unread}))
+	evt, err := ws.NewEvent(ws.EventNotificationUnread, map[string]int{"count": unread})
+	if err != nil {
+		logger.Error("create notification.unread.count event", "error", err)
+		return err
+	}
+	return publisher.PublishToUser(userID, evt)
 }

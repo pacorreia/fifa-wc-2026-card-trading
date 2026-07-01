@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"database/sql"
+	"errors"
 	"net/http"
 
 	"github.com/pacorreia/fifa-wc-2026-card-trading/internal/auth"
@@ -33,6 +35,10 @@ func (h *TradeHandler) GetMatchWithUser(w http.ResponseWriter, r *http.Request) 
 	}
 	match, err := h.service.FindMatchWithUser(r.Context(), claims.UserID, userID)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			writeError(w, http.StatusNotFound, "user not found")
+			return
+		}
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

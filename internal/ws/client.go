@@ -2,6 +2,7 @@ package ws
 
 import (
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -19,6 +20,8 @@ type Client struct {
 	conn   *websocket.Conn
 	logger *slog.Logger
 	send   chan []byte
+	done   chan struct{}
+	once   sync.Once
 	userID int64
 }
 
@@ -28,14 +31,22 @@ func NewClient(hub *Hub, conn *websocket.Conn, logger *slog.Logger, userID int64
 		conn:   conn,
 		logger: logger,
 		send:   make(chan []byte, 32),
+		done:   make(chan struct{}),
 		userID: userID,
 	}
+}
+
+// shutdown signals the client to stop accepting new messages. Safe to call
+// multiple times; the underlying channel is closed exactly once.
+func (c *Client) shutdown() {
+	c.once.Do(func() { close(c.done) })
 }
 
 func (c *Client) ReadPump() {
 	defer func() {
 		c.hub.Unregister(c)
 		c.close()
+		c.shutdown()
 	}()
 
 	c.conn.SetReadLimit(maxMessageSize)
@@ -78,6 +89,10 @@ func (c *Client) WritePump() {
 			if err := writer.Close(); err != nil {
 				return
 			}
+		case <-c.done:
+			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
+			_ = c.conn.WriteMessage(websocket.CloseMessage, []byte{})
+			return
 		case <-ticker.C:
 			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {

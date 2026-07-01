@@ -78,8 +78,11 @@ async function apiFetch(path, options = {}, retry = true) {
     return apiFetch(path, options, false);
   }
   const text = await response.text();
-  const data = text ? JSON.parse(text) : null;
-  if (!response.ok) throw new Error(data?.error || `Request failed: ${response.status}`);
+  let data = null;
+  if (text) {
+    try { data = JSON.parse(text); } catch { /* plain-text body */ }
+  }
+  if (!response.ok) throw new Error(data?.error || text || `Request failed: ${response.status}`);
   return data;
 }
 
@@ -276,7 +279,7 @@ function connectWebSocket() {
   state.ws.onmessage = async (event) => {
     const message = JSON.parse(event.data);
     if (message.type === 'notification.unread.count') {
-      const payload = JSON.parse(message.payload || '{}');
+      const payload = message.payload || {};
       els.notificationBadge.textContent = payload.count || 0;
       return;
     }

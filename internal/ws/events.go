@@ -2,6 +2,7 @@ package ws
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/pacorreia/fifa-wc-2026-card-trading/internal/models"
@@ -18,12 +19,15 @@ const (
 	EventVersion              = "v1"
 )
 
-func NewEvent(eventType string, payload any) models.Event {
-	raw, _ := json.Marshal(payload)
+func NewEvent(eventType string, payload any) (models.Event, error) {
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return models.Event{}, fmt.Errorf("marshal event payload for %q: %w", eventType, err)
+	}
 	return models.Event{
 		Type:      eventType,
 		Version:   EventVersion,
 		Timestamp: time.Now().UTC(),
 		Payload:   raw,
-	}
+	}, nil
 }

@@ -58,7 +58,11 @@ func (h *UserHandler) GetCollection(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusNotFound, "user not found")
 			return
 		}
-		writeError(w, http.StatusForbidden, err.Error())
+		if errors.Is(err, services.ErrPrivateCollection) {
+			writeError(w, http.StatusForbidden, "collection is private")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"items": items, "stats": stats})

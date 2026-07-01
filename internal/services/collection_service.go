@@ -4,13 +4,16 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"log/slog"
 	"sort"
 
 	"github.com/pacorreia/fifa-wc-2026-card-trading/internal/models"
 	"github.com/pacorreia/fifa-wc-2026-card-trading/internal/ws"
 )
+
+// ErrPrivateCollection is returned when a requester tries to access another
+// user's collection that has is_public set to false.
+var ErrPrivateCollection = errors.New("collection is private")
 
 type EventPublisher interface {
 	PublishToUser(userID int64, event models.Event) error
@@ -140,8 +143,16 @@ func (s *CollectionService) UpdateItem(ctx context.Context, userID int64, sticke
 
 	stats, err := s.GetStats(ctx, userID)
 	if err == nil && s.publisher != nil {
-		_ = s.publisher.PublishToUser(userID, ws.NewEvent(ws.EventCollectionUpdated, item))
-		_ = s.publisher.PublishToUser(userID, ws.NewEvent(ws.EventStatsUpdated, stats))
+		if evt, evtErr := ws.NewEvent(ws.EventCollectionUpdated, item); evtErr == nil {
+			_ = s.publisher.PublishToUser(userID, evt)
+		} else {
+			s.logger.Error("create collection.updated event", "error", evtErr)
+		}
+		if evt, evtErr := ws.NewEvent(ws.EventStatsUpdated, stats); evtErr == nil {
+			_ = s.publisher.PublishToUser(userID, evt)
+		} else {
+			s.logger.Error("create stats.updated event", "error", evtErr)
+		}
 	}
 	return item, nil
 }
@@ -278,7 +289,7 @@ func (s *CollectionService) GetUserCollection(ctx context.Context, requesterID, 
 		return nil, models.CollectionStats{}, err
 	}
 	if requesterID != targetUserID && !isPublic {
-		return nil, models.CollectionStats{}, fmt.Errorf("collection is private")
+		return nil, models.CollectionStats{}, ErrPrivateCollection
 	}
 	items, err := s.GetCollection(ctx, targetUserID)
 	if err != nil {

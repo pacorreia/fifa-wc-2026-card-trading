@@ -127,7 +127,20 @@ func HashRefreshToken(token string) string {
 }
 
 func StoreRefreshToken(ctx context.Context, db *sql.DB, userID int64, token string, expiresAt time.Time) error {
-	_, err := db.ExecContext(ctx, `
+	return execStoreRefreshToken(ctx, db, userID, token, expiresAt)
+}
+
+// StoreRefreshTokenTx stores a refresh token within an existing transaction.
+func StoreRefreshTokenTx(ctx context.Context, tx *sql.Tx, userID int64, token string, expiresAt time.Time) error {
+	return execStoreRefreshToken(ctx, tx, userID, token, expiresAt)
+}
+
+type executer interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+}
+
+func execStoreRefreshToken(ctx context.Context, exec executer, userID int64, token string, expiresAt time.Time) error {
+	_, err := exec.ExecContext(ctx, `
         INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
         VALUES ($1, $2, $3)
     `, userID, HashRefreshToken(token), expiresAt)

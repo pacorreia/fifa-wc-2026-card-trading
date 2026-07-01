@@ -87,10 +87,11 @@ func (s *AuthService) Register(ctx context.Context, input RegisterInput) (models
 		return models.User{}, auth.TokenPair{}, err
 	}
 
-	if err := tx.Commit(); err != nil {
+	if err := auth.StoreRefreshTokenTx(ctx, tx, user.ID, pair.RefreshToken, pair.RefreshExpiresAt); err != nil {
 		return models.User{}, auth.TokenPair{}, err
 	}
-	if err := auth.StoreRefreshToken(ctx, s.db, user.ID, pair.RefreshToken, pair.RefreshExpiresAt); err != nil {
+
+	if err := tx.Commit(); err != nil {
 		return models.User{}, auth.TokenPair{}, err
 	}
 	return user, pair, nil
