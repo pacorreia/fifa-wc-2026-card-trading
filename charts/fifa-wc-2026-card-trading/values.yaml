@@ -1,0 +1,130 @@
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+backend:
+  replicaCount: 1
+  image:
+    repository: ghcr.io/pacorreia/fifa-wc-2026-card-trading-backend
+    tag: latest
+    pullPolicy: IfNotPresent
+  containerPort: 8080
+  service:
+    type: ClusterIP
+    port: 8080
+  podAnnotations: {}
+  podLabels: {}
+  resources: {}
+  livenessProbe:
+    httpGet:
+      path: /healthz
+      port: http
+  readinessProbe:
+    httpGet:
+      path: /readyz
+      port: http
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 65534
+    runAsGroup: 65534
+    readOnlyRootFilesystem: true
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop: ["ALL"]
+    seccompProfile:
+      type: RuntimeDefault
+  podSecurityContext:
+    fsGroup: 65534
+  env:
+    PORT: "8080"
+    CORS_ORIGINS: "http://localhost:3000"
+    API_RATE_LIMIT_PER_MINUTE: "100"
+    LOGIN_RATE_LIMIT_PER_MINUTE: "5"
+    REGISTER_RATE_LIMIT_PER_MINUTE: "3"
+    WS_MAX_CONNECTIONS_PER_USER: "5"
+    LOG_LEVEL: INFO
+  extraEnv: []
+
+frontend:
+  replicaCount: 1
+  image:
+    repository: ghcr.io/pacorreia/fifa-wc-2026-card-trading-frontend
+    tag: latest
+    pullPolicy: IfNotPresent
+  containerPort: 80
+  service:
+    type: ClusterIP
+    port: 80
+  podAnnotations: {}
+  podLabels: {}
+  resources: {}
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 101
+    runAsGroup: 101
+    readOnlyRootFilesystem: true
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop: ["ALL"]
+    seccompProfile:
+      type: RuntimeDefault
+  podSecurityContext:
+    fsGroup: 101
+  config:
+    apiBaseUrl: "http://localhost/api"
+    wsBaseUrl: "ws://localhost"
+
+secrets:
+  existingSecret: ""
+  databaseUrl: postgres://postgres:postgres@postgres:5432/fifa_wc_2026?sslmode=disable
+  jwtSecret: change-me-in-production
+
+ingress:
+  enabled: true
+  className: ""
+  annotations: {}
+  hosts:
+    - host: fifa-wc-2026.local
+      frontendPaths:
+        - path: /
+          pathType: Prefix
+      backendPaths:
+        - path: /api
+          pathType: Prefix
+        - path: /ws
+          pathType: Prefix
+        - path: /healthz
+          pathType: Prefix
+        - path: /readyz
+          pathType: Prefix
+  tls: []
+
+hpa:
+  enabled: false
+  backend:
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilizationPercentage: 75
+  frontend:
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilizationPercentage: 75
+
+pdb:
+  enabled: true
+  backend:
+    minAvailable: 1
+  frontend:
+    minAvailable: 1
+
+networkPolicy:
+  enabled: true
+  allowExternalIngress: true
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

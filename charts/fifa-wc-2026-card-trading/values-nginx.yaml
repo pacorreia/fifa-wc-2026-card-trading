@@ -1,0 +1,19 @@
+ingress:
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+  hosts:
+    - host: fifa-nginx.local
+      frontendPaths:
+        - path: /
+          pathType: Prefix
+      backendPaths:
+        - path: /api
+          pathType: Prefix
+        - path: /ws
+          pathType: Prefix
+        - path: /healthz
+          pathType: Prefix
+        - path: /readyz
+          pathType: Prefix
