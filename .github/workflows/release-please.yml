@@ -98,21 +98,33 @@ jobs:
           else
             echo "::warning::release-please found nothing to do for ${TAG}; creating release directly"
             python3 -c "
-import json
-with open('.release-please-manifest.json') as f:
-    m = json.load(f)
-m['.'] = '${VERSION}'
-with open('.release-please-manifest.json', 'w') as f:
-    json.dump(m, f, indent=2)
-    f.write('\n')
+import json, sys
+try:
+    with open('.release-please-manifest.json') as f:
+        m = json.load(f)
+    m['.'] = '${VERSION}'
+    with open('.release-please-manifest.json', 'w') as f:
+        json.dump(m, f, indent=2)
+        f.write('\n')
+except Exception as e:
+    print('::error::Failed to update manifest: ' + str(e), file=sys.stderr)
+    sys.exit(1)
 "
+            if [ ! -f charts/fifa-wc-2026-card-trading/Chart.yaml ]; then
+              echo "::error::charts/fifa-wc-2026-card-trading/Chart.yaml not found"
+              exit 1
+            fi
             sed -i "s/^version: .*/version: ${VERSION}/" charts/fifa-wc-2026-card-trading/Chart.yaml
             sed -i "s/^appVersion: .*/appVersion: ${VERSION}/" charts/fifa-wc-2026-card-trading/Chart.yaml
             git config user.email "github-actions[bot]@users.noreply.github.com"
             git config user.name "github-actions[bot]"
             git add .release-please-manifest.json charts/fifa-wc-2026-card-trading/Chart.yaml
-            git commit -m "chore(manifest): update version to ${VERSION}"
-            git push
+            if ! git diff --cached --quiet; then
+              git commit -m "chore(manifest): update version to ${VERSION}"
+              git push
+            fi
+            git tag "${TAG}"
+            git push origin "${TAG}"
             gh release create "${TAG}" \
               --repo "${{ github.repository }}" \
               --title "${TAG}" \
