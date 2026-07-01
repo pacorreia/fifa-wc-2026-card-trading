@@ -1,0 +1,243 @@
+name: Release Please
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      release_as:
+        description: 'Force a specific version (e.g. 1.2.3). Leave empty for normal release-please flow.'
+        required: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  packages: write
+
+jobs:
+  check-commit:
+    name: Check Commit Prefix
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.check.outputs.should_run }}
+    steps:
+      - name: Evaluate commit message
+        id: check
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+          elif printf '%s\n' "${{ github.event.head_commit.message }}" | head -n 1 | grep -qE '^(feat|fix)(\([^)]*\))?!?:|^chore(\([^)]*\))?: release|^Merge pull request #[0-9]+ from .*/release-please--branches--'; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  release-please:
+    name: Release Please
+    needs: check-commit
+    if: needs.check-commit.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created || steps.forced-result.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name || steps.release-forced.outputs.tag_name || steps.forced-result.outputs.tag_name }}
+    steps:
+      - name: Run release-please
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5
+        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.release_as == '')
+        id: release
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run release-please (on-demand with forced version)
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5
+        if: github.event_name == 'workflow_dispatch' && inputs.release_as != ''
+        id: release-forced
+        continue-on-error: true
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+          release-as: ${{ inputs.release_as }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Validate forced release result
+        if: github.event_name == 'workflow_dispatch' && inputs.release_as != ''
+        id: forced-result
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="v${{ inputs.release_as }}"
+          release_exists() {
+            gh release view "${TAG}" --repo "${{ github.repository }}" > /dev/null 2>&1
+          }
+
+          if [ "${{ steps.release-forced.outcome }}" = "failure" ]; then
+            echo "::warning::release-please forced run failed; checking if release ${TAG} already exists"
+            if release_exists; then
+              echo "release_created=true" >> "$GITHUB_OUTPUT"
+              echo "tag_name=${TAG}" >> "$GITHUB_OUTPUT"
+            else
+              echo "::error::Forced release failed and release ${TAG} was not found"
+              exit 1
+            fi
+          elif [ "${{ steps.release-forced.outputs.release_created }}" = "true" ]; then
+            echo "release_created=true" >> "$GITHUB_OUTPUT"
+            echo "tag_name=${{ steps.release-forced.outputs.tag_name }}" >> "$GITHUB_OUTPUT"
+          elif release_exists; then
+            echo "::warning::Forced release did not create a new release; using existing release ${TAG}"
+            echo "release_created=true" >> "$GITHUB_OUTPUT"
+            echo "tag_name=${TAG}" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::No release found for ${TAG} after forced release run"
+            exit 1
+          fi
+
+  get-tag:
+    name: Resolve Release Tag
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      tag_name: ${{ steps.tag.outputs.tag_name }}
+      version: ${{ steps.tag.outputs.version }}
+    steps:
+      - name: Resolve tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ inputs.release_as }}" ]; then
+            TAG="v${{ inputs.release_as }}"
+          else
+            TAG="${{ needs.release-please.outputs.tag_name }}"
+          fi
+
+          if [ -z "${TAG}" ]; then
+            echo "::error::Unable to resolve release tag"
+            exit 1
+          fi
+
+          echo "tag_name=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+  docker-backend:
+    name: Publish Backend Image
+    needs: get-tag
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-qemu-action@v3
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}-backend
+          tags: |
+            type=semver,pattern={{version}},value=${{ needs.get-tag.outputs.tag_name }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ needs.get-tag.outputs.tag_name }}
+            type=raw,value=latest
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  docker-frontend:
+    name: Publish Frontend Image
+    needs: get-tag
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-qemu-action@v3
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}-frontend
+          tags: |
+            type=semver,pattern={{version}},value=${{ needs.get-tag.outputs.tag_name }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ needs.get-tag.outputs.tag_name }}
+            type=raw,value=latest
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile.frontend
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  helm:
+    name: Publish Helm Chart
+    needs: get-tag
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Log in to GHCR (Helm OCI)
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io \
+            --username "${{ github.actor }}" \
+            --password-stdin
+
+      - name: Package chart
+        run: |
+          helm package charts/fifa-wc-2026-card-trading \
+            --version "${{ needs.get-tag.outputs.version }}" \
+            --app-version "${{ needs.get-tag.outputs.version }}" \
+            --destination dist/
+
+      - name: Push chart to OCI
+        run: |
+          helm push dist/fifa-wc-2026-card-trading-${{ needs.get-tag.outputs.version }}.tgz \
+            oci://ghcr.io/${{ github.repository_owner }}/charts
+
+      - name: Upload chart to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.get-tag.outputs.tag_name }}
+          files: dist/fifa-wc-2026-card-trading-${{ needs.get-tag.outputs.version }}.tgz
