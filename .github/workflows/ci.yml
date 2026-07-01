@@ -8,6 +8,8 @@ jobs:
   test:
     name: Go Tests
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
 
@@ -21,6 +23,9 @@ jobs:
   docker-backend:
     name: Build Backend Image
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write
     steps:
       - uses: actions/checkout@v4
 
@@ -38,6 +43,9 @@ jobs:
   docker-frontend:
     name: Build Frontend Image
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write
     steps:
       - uses: actions/checkout@v4
 
