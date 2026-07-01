@@ -84,6 +84,9 @@ jobs:
           elif [ "${{ steps.release-forced.outputs.release_created }}" = "true" ]; then
             echo "release_created=true" >> "$GITHUB_OUTPUT"
             echo "tag_name=${{ steps.release-forced.outputs.tag_name }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ steps.release-forced.outputs.prs_created }}" = "true" ] || [ -n "${{ steps.release-forced.outputs.pr }}" ]; then
+            echo "::warning::Forced release created/updated a release PR but no release exists yet; continuing without publish jobs"
+            echo "release_created=false" >> "$GITHUB_OUTPUT"
           elif release_exists; then
             echo "::warning::Forced release did not create a new release; using existing release ${TAG}"
             echo "release_created=true" >> "$GITHUB_OUTPUT"
