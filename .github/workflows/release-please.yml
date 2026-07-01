@@ -64,14 +64,17 @@ jobs:
       - name: Validate forced release result
         if: github.event_name == 'workflow_dispatch' && inputs.release_as != ''
         id: forced-result
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="v${{ inputs.release_as }}"
+          release_exists() {
+            gh release view "${TAG}" --repo "${{ github.repository }}" > /dev/null 2>&1
+          }
 
           if [ "${{ steps.release-forced.outcome }}" = "failure" ]; then
             echo "::warning::release-please forced run failed; checking if release ${TAG} already exists"
-            if curl -fsSL \
-              -H "Accept: application/vnd.github+json" \
-              "https://api.github.com/repos/${{ github.repository }}/releases/tags/${TAG}" > /dev/null; then
+            if release_exists; then
               echo "release_created=true" >> "$GITHUB_OUTPUT"
               echo "tag_name=${TAG}" >> "$GITHUB_OUTPUT"
             else
@@ -81,9 +84,7 @@ jobs:
           elif [ "${{ steps.release-forced.outputs.release_created }}" = "true" ]; then
             echo "release_created=true" >> "$GITHUB_OUTPUT"
             echo "tag_name=${{ steps.release-forced.outputs.tag_name }}" >> "$GITHUB_OUTPUT"
-          elif curl -fsSL \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${{ github.repository }}/releases/tags/${TAG}" > /dev/null; then
+          elif release_exists; then
             echo "::warning::Forced release did not create a new release; using existing release ${TAG}"
             echo "release_created=true" >> "$GITHUB_OUTPUT"
             echo "tag_name=${TAG}" >> "$GITHUB_OUTPUT"
