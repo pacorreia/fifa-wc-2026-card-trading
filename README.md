@@ -1,0 +1,1 @@
+# fifa-wc-2026-card-trading
