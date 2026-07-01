@@ -3,6 +3,7 @@ package handlers
 import (
 	"database/sql"
 	"errors"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -62,6 +63,7 @@ func (h *UserHandler) GetCollection(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusForbidden, "collection is private")
 			return
 		}
+		slog.Default().Error("GetCollection", "user_id", targetID, "error", err)
 		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}

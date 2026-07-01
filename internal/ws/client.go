@@ -45,8 +45,8 @@ func (c *Client) shutdown() {
 func (c *Client) ReadPump() {
 	defer func() {
 		c.hub.Unregister(c)
-		c.close()
 		c.shutdown()
+		c.close()
 	}()
 
 	c.conn.SetReadLimit(maxMessageSize)
