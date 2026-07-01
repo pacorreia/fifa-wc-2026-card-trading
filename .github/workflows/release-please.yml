@@ -69,6 +69,7 @@ jobs:
         id: forced-result
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_PR_JSON: ${{ steps.release-forced.outputs.pr }}
         run: |
           TAG="v${{ inputs.release_as }}"
           VERSION="${{ inputs.release_as }}"
@@ -88,28 +89,28 @@ jobs:
           elif [ "${{ steps.release-forced.outputs.release_created }}" = "true" ]; then
             echo "release_created=true" >> "$GITHUB_OUTPUT"
             echo "tag_name=${{ steps.release-forced.outputs.tag_name }}" >> "$GITHUB_OUTPUT"
-          elif [ "${{ steps.release-forced.outputs.prs_created }}" = "true" ] || [ -n "${{ steps.release-forced.outputs.pr }}" ]; then
-            echo "::warning::Forced release created/updated a release PR but no release exists yet; continuing without publish jobs"
-            echo "release_created=false" >> "$GITHUB_OUTPUT"
           elif release_exists; then
             echo "::warning::Forced release did not create a new release; using existing release ${TAG}"
             echo "release_created=true" >> "$GITHUB_OUTPUT"
             echo "tag_name=${TAG}" >> "$GITHUB_OUTPUT"
           else
-            echo "::warning::release-please found nothing to do for ${TAG}; creating release directly"
-            python3 -c "
-import json, sys
-try:
-    with open('.release-please-manifest.json') as f:
-        m = json.load(f)
-    m['.'] = '${VERSION}'
-    with open('.release-please-manifest.json', 'w') as f:
-        json.dump(m, f, indent=2)
-        f.write('\n')
-except Exception as e:
-    print('::error::Failed to update manifest: ' + str(e), file=sys.stderr)
-    sys.exit(1)
-"
+            if [ "${{ steps.release-forced.outputs.prs_created }}" = "true" ] || [ -n "${RELEASE_PR_JSON}" ]; then
+              echo "::warning::release-please created a release PR; closing it and creating release directly"
+              if [ -n "${RELEASE_PR_JSON}" ]; then
+                PR_NUMBER=$(echo "${RELEASE_PR_JSON}" | jq -r '.number // empty' 2>/dev/null || true)
+                if [ -n "${PR_NUMBER}" ]; then
+                  gh pr close "${PR_NUMBER}" --comment "Superseded: release ${TAG} is being created directly via workflow dispatch." --repo "${{ github.repository }}" || true
+                fi
+              fi
+            else
+              echo "::warning::release-please found nothing to do for ${TAG}; creating release directly"
+            fi
+            if [ ! -f .release-please-manifest.json ]; then
+              echo "::error::.release-please-manifest.json not found"
+              exit 1
+            fi
+            jq --arg v "${VERSION}" '."." = $v' .release-please-manifest.json > /tmp/manifest-update.json \
+              && mv /tmp/manifest-update.json .release-please-manifest.json
             if [ ! -f charts/fifa-wc-2026-card-trading/Chart.yaml ]; then
               echo "::error::charts/fifa-wc-2026-card-trading/Chart.yaml not found"
               exit 1
