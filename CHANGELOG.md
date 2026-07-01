@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.2.1](https://github.com/pacorreia/fifa-wc-2026-card-trading/compare/v0.2.0...v0.2.1) (2026-07-01)
+
+
+### Bug Fixes
+
+* add robustness to direct release fallback path ([73a9dd4](https://github.com/pacorreia/fifa-wc-2026-card-trading/commit/73a9dd4b37b817c5c49aab307601015d5b4bb86f))
+* create release directly when release-please finds no conventional commits ([0569964](https://github.com/pacorreia/fifa-wc-2026-card-trading/commit/05699644713c000f2458ffd1dacd916a4b827bb6))
+* handle no-commit case in forced release dispatch ([0565803](https://github.com/pacorreia/fifa-wc-2026-card-trading/commit/0565803824b06cb0c0a56791aa4dea691c0c7244))
+* repair YAML syntax error and on-demand release flow in release workflow ([4a14a3a](https://github.com/pacorreia/fifa-wc-2026-card-trading/commit/4a14a3a2b52c994ebde7bf798c1d99ef0b053ebd))
+* YAML syntax error breaks release workflow — replace inline Python with jq ([54a4a91](https://github.com/pacorreia/fifa-wc-2026-card-trading/commit/54a4a91181bcaff760859660e1addd0813d2ccab))
+
 ## [0.2.0](https://github.com/pacorreia/fifa-wc-2026-card-trading/compare/v0.1.0...v0.2.0) (2026-07-01)
 
 
