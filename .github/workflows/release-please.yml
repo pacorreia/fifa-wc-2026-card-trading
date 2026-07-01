@@ -197,12 +197,6 @@ jobs:
             --username "${{ github.actor }}" \
             --password-stdin
 
-      - name: Update Chart versions
-        run: |
-          VERSION="${{ needs.get-tag.outputs.version }}"
-          sed -i "s/^version:.*/version: ${VERSION}/" charts/fifa-wc-2026-card-trading/Chart.yaml
-          sed -i "s/^appVersion:.*/appVersion: \"${VERSION}\"/" charts/fifa-wc-2026-card-trading/Chart.yaml
-
       - name: Package chart
         run: |
           helm package charts/fifa-wc-2026-card-trading \
