@@ -41,6 +41,9 @@ jobs:
       release_created: ${{ steps.release.outputs.release_created || steps.forced-result.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name || steps.release-forced.outputs.tag_name || steps.forced-result.outputs.tag_name }}
     steps:
+      - uses: actions/checkout@v4
+        if: github.event_name == 'workflow_dispatch' && inputs.release_as != ''
+
       - name: Run release-please
         uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5
         if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.release_as == '')
@@ -68,6 +71,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="v${{ inputs.release_as }}"
+          VERSION="${{ inputs.release_as }}"
           release_exists() {
             gh release view "${TAG}" --repo "${{ github.repository }}" > /dev/null 2>&1
           }
@@ -92,8 +96,29 @@ jobs:
             echo "release_created=true" >> "$GITHUB_OUTPUT"
             echo "tag_name=${TAG}" >> "$GITHUB_OUTPUT"
           else
-            echo "::error::No release found for ${TAG} after forced release run"
-            exit 1
+            echo "::warning::release-please found nothing to do for ${TAG}; creating release directly"
+            python3 -c "
+import json
+with open('.release-please-manifest.json') as f:
+    m = json.load(f)
+m['.'] = '${VERSION}'
+with open('.release-please-manifest.json', 'w') as f:
+    json.dump(m, f, indent=2)
+    f.write('\n')
+"
+            sed -i "s/^version: .*/version: ${VERSION}/" charts/fifa-wc-2026-card-trading/Chart.yaml
+            sed -i "s/^appVersion: .*/appVersion: ${VERSION}/" charts/fifa-wc-2026-card-trading/Chart.yaml
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git config user.name "github-actions[bot]"
+            git add .release-please-manifest.json charts/fifa-wc-2026-card-trading/Chart.yaml
+            git commit -m "chore(manifest): update version to ${VERSION}"
+            git push
+            gh release create "${TAG}" \
+              --repo "${{ github.repository }}" \
+              --title "${TAG}" \
+              --generate-notes
+            echo "release_created=true" >> "$GITHUB_OUTPUT"
+            echo "tag_name=${TAG}" >> "$GITHUB_OUTPUT"
           fi
 
   get-tag:
