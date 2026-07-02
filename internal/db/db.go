@@ -19,17 +19,39 @@ import (
 type Store struct {
 	DB     *sql.DB
 	Logger *slog.Logger
+	driver string
 }
 
 func Connect(ctx context.Context, cfg config.Config, logger *slog.Logger) (*Store, error) {
-	database, err := sql.Open("postgres", cfg.DatabaseURL)
-	if err != nil {
-		return nil, fmt.Errorf("open database: %w", err)
-	}
+	var (
+		database *sql.DB
+		err      error
+		drv      = strings.ToLower(strings.TrimSpace(cfg.DBDriver))
+	)
 
-	database.SetMaxOpenConns(cfg.DBMaxOpenConns)
-	database.SetMaxIdleConns(cfg.DBMaxIdleConns)
-	database.SetConnMaxLifetime(cfg.DBConnMaxLifetime)
+	switch drv {
+	case "sqlite", "":
+		drv = "sqlite"
+		dsn := fmt.Sprintf("file:%s?_pragma=foreign_keys%%3D1", cfg.SQLitePath)
+		database, err = sql.Open(sqliteDriverName, dsn)
+		if err != nil {
+			return nil, fmt.Errorf("open sqlite database: %w", err)
+		}
+		// SQLite performs best with a single writer connection.
+		database.SetMaxOpenConns(1)
+		database.SetMaxIdleConns(1)
+		database.SetConnMaxLifetime(0)
+	case "postgres":
+		database, err = sql.Open("postgres", cfg.DatabaseURL)
+		if err != nil {
+			return nil, fmt.Errorf("open database: %w", err)
+		}
+		database.SetMaxOpenConns(cfg.DBMaxOpenConns)
+		database.SetMaxIdleConns(cfg.DBMaxIdleConns)
+		database.SetConnMaxLifetime(cfg.DBConnMaxLifetime)
+	default:
+		return nil, fmt.Errorf("unsupported DB_DRIVER %q: use \"sqlite\" or \"postgres\"", cfg.DBDriver)
+	}
 
 	pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
@@ -38,8 +60,10 @@ func Connect(ctx context.Context, cfg config.Config, logger *slog.Logger) (*Stor
 		return nil, fmt.Errorf("ping database: %w", err)
 	}
 
-	return &Store{DB: database, Logger: logger}, nil
+	return &Store{DB: database, Logger: logger, driver: drv}, nil
 }
+
+func (s *Store) Driver() string { return s.driver }
 
 func (s *Store) Close() error {
 	if s == nil || s.DB == nil {
@@ -61,11 +85,23 @@ func (s *Store) QueryRowContext(ctx context.Context, query string, args ...any) 
 }
 
 func (s *Store) RunMigrations(ctx context.Context, migrationsDir string) error {
-	if _, err := s.ExecContext(ctx, `
-        CREATE TABLE IF NOT EXISTS schema_migrations (
-            filename TEXT PRIMARY KEY,
-            applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-        )`); err != nil {
+	var createMigrationsTable string
+	if s.driver == "sqlite" {
+		migrationsDir = filepath.Join(migrationsDir, "sqlite")
+		createMigrationsTable = `
+            CREATE TABLE IF NOT EXISTS schema_migrations (
+                filename TEXT PRIMARY KEY,
+                applied_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+            )`
+	} else {
+		createMigrationsTable = `
+            CREATE TABLE IF NOT EXISTS schema_migrations (
+                filename TEXT PRIMARY KEY,
+                applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )`
+	}
+
+	if _, err := s.ExecContext(ctx, createMigrationsTable); err != nil {
 		return fmt.Errorf("create schema_migrations: %w", err)
 	}
 
@@ -120,3 +156,4 @@ func (s *Store) RunMigrations(ctx context.Context, migrationsDir string) error {
 
 	return nil
 }
+

@@ -9,7 +9,9 @@ import (
 
 type Config struct {
 	Port                    string
+	DBDriver                string
 	DatabaseURL             string
+	SQLitePath              string
 	DBMaxOpenConns          int
 	DBMaxIdleConns          int
 	DBConnMaxLifetime       time.Duration
@@ -28,7 +30,9 @@ type Config struct {
 func Load() Config {
 	return Config{
 		Port:                    getEnv("PORT", "8080"),
+		DBDriver:                getEnv("DB_DRIVER", "sqlite"),
 		DatabaseURL:             getEnv("DATABASE_URL", defaultDatabaseURL()),
+		SQLitePath:              getEnv("SQLITE_PATH", "./fifa_wc_2026.db"),
 		DBMaxOpenConns:          getEnvInt("DB_MAX_OPEN_CONNS", 20),
 		DBMaxIdleConns:          getEnvInt("DB_MAX_IDLE_CONNS", 5),
 		DBConnMaxLifetime:       getEnvDuration("DB_CONN_MAX_LIFETIME", 30*time.Minute),

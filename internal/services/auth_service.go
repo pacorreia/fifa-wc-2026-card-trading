@@ -16,6 +16,16 @@ import (
 	"github.com/pacorreia/fifa-wc-2026-card-trading/internal/models"
 )
 
+// isUniqueConstraintError returns true when err is a unique-constraint violation
+// from either PostgreSQL (via lib/pq) or SQLite.
+func isUniqueConstraintError(err error) bool {
+	var pqErr *pq.Error
+	if errors.As(err, &pqErr) && pqErr.Code == "23505" {
+		return true
+	}
+	return strings.Contains(err.Error(), "UNIQUE constraint failed")
+}
+
 var usernameRE = regexp.MustCompile(`^[a-zA-Z0-9_-]{3,32}$`)
 
 type AuthService struct {
@@ -71,8 +81,7 @@ func (s *AuthService) Register(ctx context.Context, input RegisterInput) (models
         RETURNING id, username, email, is_public, created_at
     `, input.Username, input.Email, passwordHash).Scan(&user.ID, &user.Username, &user.Email, &user.IsPublic, &user.CreatedAt)
 	if err != nil {
-		var pqErr *pq.Error
-		if errors.As(err, &pqErr) && pqErr.Code == "23505" {
+		if isUniqueConstraintError(err) {
 			return models.User{}, auth.TokenPair{}, errors.New("username or email already exists")
 		}
 		return models.User{}, auth.TokenPair{}, err
