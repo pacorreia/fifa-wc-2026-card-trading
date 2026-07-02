@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2](https://github.com/pacorreia/fifa-wc-2026-card-trading/compare/v0.2.1...v0.2.2) (2026-07-02)
+
+
+### Bug Fixes
+
+* update Dockerfile to use Go 1.24 matching go.mod requirement ([0d4d5e4](https://github.com/pacorreia/fifa-wc-2026-card-trading/commit/0d4d5e424a775ca7fec07604632b69f7ba9b4ea6))
+
 ## [0.2.0](https://github.com/pacorreia/fifa-wc-2026-card-trading/compare/v0.1.0...v0.2.0) (2026-07-01)
 
 
