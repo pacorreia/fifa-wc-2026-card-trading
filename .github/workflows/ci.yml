@@ -5,11 +5,11 @@ on:
     branches: [main]
 
 env:
-  CACHE_TO: ${{ github.event.pull_request.head.repo.full_name == github.repository && 'type=gha,mode=max' || '' }}
+  IS_SAME_REPO: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
 
 jobs:
-  test:
-    name: Go Tests
+  build:
+    name: Build & Test
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -20,7 +20,10 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Run tests
+      - name: Build
+        run: go build ./...
+
+      - name: Test
         run: go test ./...
 
   docker-backend:
@@ -34,14 +37,14 @@ jobs:
 
       - uses: docker/setup-buildx-action@v3
 
-      - name: Build
+      - name: Build backend image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
           push: false
-          cache-from: type=gha
-          cache-to: ${{ env.CACHE_TO }}
+          cache-from: type=gha,scope=backend
+          cache-to: ${{ env.IS_SAME_REPO == 'true' && 'type=gha,mode=max,scope=backend' || '' }}
 
   docker-frontend:
     name: Build Frontend Image
@@ -54,11 +57,11 @@ jobs:
 
       - uses: docker/setup-buildx-action@v3
 
-      - name: Build
+      - name: Build frontend image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile.frontend
           push: false
-          cache-from: type=gha
-          cache-to: ${{ env.CACHE_TO }}
+          cache-from: type=gha,scope=frontend
+          cache-to: ${{ env.IS_SAME_REPO == 'true' && 'type=gha,mode=max,scope=frontend' || '' }}
