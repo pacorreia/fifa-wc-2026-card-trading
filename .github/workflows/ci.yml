@@ -4,6 +4,9 @@ on:
   pull_request:
     branches: [main]
 
+env:
+  IS_SAME_REPO: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+
 jobs:
   build:
     name: Build & Test
@@ -28,6 +31,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      actions: write
     steps:
       - uses: actions/checkout@v4
 
@@ -40,13 +44,14 @@ jobs:
           file: ./Dockerfile
           push: false
           cache-from: type=gha,scope=backend
-          cache-to: type=gha,mode=max,scope=backend
+          cache-to: ${{ env.IS_SAME_REPO == 'true' && 'type=gha,mode=max,scope=backend' || '' }}
 
   docker-frontend:
     name: Build Frontend Image
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      actions: write
     steps:
       - uses: actions/checkout@v4
 
@@ -59,4 +64,4 @@ jobs:
           file: ./Dockerfile.frontend
           push: false
           cache-from: type=gha,scope=frontend
-          cache-to: type=gha,mode=max,scope=frontend
+          cache-to: ${{ env.IS_SAME_REPO == 'true' && 'type=gha,mode=max,scope=frontend' || '' }}
